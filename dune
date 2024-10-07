@@ -1,0 +1,4 @@
+(library
+ (name your_module) ;; Replace with your module's name
+ (public_name your_public_library_name) ;; Public name of the library
+ (libraries other_dependencies)) ;; List any other libraries you depend on
