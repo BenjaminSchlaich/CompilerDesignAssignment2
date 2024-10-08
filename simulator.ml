@@ -143,7 +143,15 @@ let sbytes_of_data : data -> sbyte list = function
 let debug_simulator = ref false
 
 (* Interpret a condition code with respect to the given flags. *)
-let interp_cnd {fo; fs; fz} : cnd -> bool = fun x -> failwith "interp_cnd unimplemented"
+let interp_cnd {fo; fs; fz} : cnd -> bool = function
+  | Eq -> fz
+  | Neq -> not fz
+  | Gt -> not ((fs <> fo) || fz)
+  | Ge -> fs = fo
+  | Lt -> fs <> fo
+  | Le -> (fs <> fo) || fz
+
+(* Eq | Neq | Gt | Ge | Lt | Le *)
 
 (* Maps an X86lite address into Some OCaml array index,
    or None if the address is not within the legal address space. *)
@@ -158,7 +166,11 @@ failwith "map_addr not implemented"
     - set the condition flags
 *)
 let step (m:mach) : unit =
-failwith "step unimplemented"
+  let instrBytes = sbytes_of_int64 m.regs.(rind Rip) in
+  let _ = match instrBytes with
+  | (InsB0 (opc, opl))::_ -> (opc, opl)
+  | _ -> failwith "trying to fetch non-instruction quadword." in
+  ()
 
 (* Runs the machine until the rip register reaches a designated
    memory address. Returns the contents of %rax when the 
