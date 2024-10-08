@@ -156,7 +156,44 @@ let interp_cnd {fo; fs; fz} : cnd -> bool = function
 (* Maps an X86lite address into Some OCaml array index,
    or None if the address is not within the legal address space. *)
 let map_addr (addr:quad) : int option =
-failwith "map_addr not implemented"
+  if addr < mem_bot || addr >= mem_top then None
+  else Some (Int64.to_int (Int64.sub addr mem_bot))
+
+(*
+  Step 1 in step function:
+    given an architecture, returns the next instruction to be executed
+*)
+let fetch (m: mach): ins =
+  let instrAddr = m.regs.(rind Rip) in
+  let instrBytes = match map_addr instrAddr with
+  | Some q -> m.mem.(q)
+  | None -> failwith "trying to fetch from invalid address." in
+  match instrBytes with
+  | (InsB0 i) -> i
+  | _ -> failwith "trying to fetch non-instruction quadword."
+
+(*
+  Step 2 in step function:
+    given an architecture and an operand list of two operands, returns
+    the quad values of these operands
+*)
+let binary_ops (m: mach) (ol: operand list): quad*quad =
+  (0L, 0L)
+
+(*
+  Step 1 in step function:
+  given an architecture and an operand, returns the quad value for the operand
+*)
+let unary_ops (m: mach) (o: operand list): quad = 
+  0L
+
+(*
+  Step 4 in the step function:
+  Save the result v of some computation at the operand o.
+*)
+let save_op (m: mach) (v: quad) (o: operand): unit = 
+  ()
+
 
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
@@ -166,11 +203,9 @@ failwith "map_addr not implemented"
     - set the condition flags
 *)
 let step (m:mach) : unit =
-  let instrBytes = sbytes_of_int64 m.regs.(rind Rip) in
-  let _ = match instrBytes with
-  | (InsB0 (opc, opl))::_ -> (opc, opl)
-  | _ -> failwith "trying to fetch non-instruction quadword." in
-  ()
+  let (oc, ol) = fetch m in 
+  match oc with
+  | _ -> ()
 
 (* Runs the machine until the rip register reaches a designated
    memory address. Returns the contents of %rax when the 
