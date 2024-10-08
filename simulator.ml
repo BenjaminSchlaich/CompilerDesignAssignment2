@@ -173,26 +173,54 @@ let fetch (m: mach): ins =
   | _ -> failwith "trying to fetch non-instruction quadword."
 
 (*
+  generic helper for step function
+  Get a value out of a Some, with a very bad exception mechanism. -> Only use when you're sure that None won't be returned.
+*)
+let trySome = function
+| (Some x) -> x
+| None -> failwith "Failed to get some value"
+
+(*
+  generic helper for step function
+  Given a address (quad), loads the quad in the memory of m at that address
+*)
+let loadQuad (m: mach) (addr: quad): quad =
+  let open List in
+  let (base: int) = trySome (map_addr addr) in
+    int64_of_sbytes (map (function (offset: int) -> m.mem.(base + offset)) [0;1;2;3;4;5;6;7])
+
+(*
+  Step 2 in step function:
+  given an architecture and an operand, returns the quad value for the operand
+*)
+let unary_ops (m: mach) (o: operand): quad =
+  match o with
+  | Imm (Lit l) -> l
+  | Reg r -> m.regs.(rind r)
+  | Ind1 (Lit l) -> loadQuad m l
+  | Ind2 r -> loadQuad m (m.regs.(rind r))
+  | Ind3 ((Lit offset), r) -> loadQuad m (Int64.add (m.regs.(rind r)) offset)
+  | _ -> failwith "unary_ops: illegal operand was provided"
+
+(*
   Step 2 in step function:
     given an architecture and an operand list of two operands, returns
     the quad values of these operands
 *)
 let binary_ops (m: mach) (ol: operand list): quad*quad =
-  (0L, 0L)
-
-(*
-  Step 1 in step function:
-  given an architecture and an operand, returns the quad value for the operand
-*)
-let unary_ops (m: mach) (o: operand list): quad = 
-  0L
+  let open List in
+  if length ol < 2 then failwith "supplied less than 2 operands to binary operation"
+  else let (opn1, opn2) = (hd ol, hd (tl ol)) in
+    (unary_ops m opn1, unary_ops m opn2)
 
 (*
   Step 4 in the step function:
-  Save the result v of some computation at the operand o.
+  Save the value v of some computation at the operand address a.
 *)
-let save_op (m: mach) (v: quad) (o: operand): unit = 
-  ()
+let save_op (m: mach) (v: quad) (a: quad): unit = 
+  let base = trySome (map_addr a) in
+  let fill = List.combine [0;1;2;3;4;5;6;7] (sbytes_of_int64 v) in
+    List.iter (function (index, sb) -> Array.set m.mem (base + index) sb) fill
 
 
 (* Simulates one step of the machine:
@@ -203,8 +231,18 @@ let save_op (m: mach) (v: quad) (o: operand): unit =
     - set the condition flags
 *)
 let step (m:mach) : unit =
-  let (oc, ol) = fetch m in 
+  let (oc, ol) = fetch m in
   match oc with
+  | Movq -> let (src, dst) = binary_ops m ol in
+            save_op m src dst
+  | Pushq -> let src = unary_ops m (List.hd ol) in
+            let dst = unary_ops m (Reg Rsp) in
+            save_op m src dst;
+            Array.set m.regs (rind Rsp) (Int64.succ dst)
+  | Popq -> let src = unary_ops m (Reg Rsp) in
+            let Reg dst = (List.hd ol) in
+            Array.set m.regs (rind dst) src;
+            Array.set m.regs (rind Rsp) (Int64.pred src)
   | _ -> ()
 
 (* Runs the machine until the rip register reaches a designated
