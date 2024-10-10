@@ -184,44 +184,69 @@ let trySome = function
   generic helper for step function
   Given a address (quad), loads the quad in the memory of m at that address
 *)
-let loadQuad (m: mach) (addr: quad): quad =
+let load_quad (m: mach) (addr: quad): quad =
   let open List in
   let (base: int) = trySome (map_addr addr) in
     int64_of_sbytes (map (function (offset: int) -> m.mem.(base + offset)) [0;1;2;3;4;5;6;7])
 
-(*
-  Step 2 in step function:
-  given an architecture and an operand, returns the quad value for the operand
-*)
-let unary_ops (m: mach) (o: operand): quad =
+let get_addr (m: mach) (o: operand): quad =
   match o with
   | Imm (Lit l) -> l
-  | Reg r -> m.regs.(rind r)
-  | Ind1 (Lit l) -> loadQuad m l
-  | Ind2 r -> loadQuad m (m.regs.(rind r))
-  | Ind3 ((Lit offset), r) -> loadQuad m (Int64.add (m.regs.(rind r)) offset)
-  | _ -> failwith "unary_ops: illegal operand was provided"
+  | Ind1 (Lit l) -> l
+  | Ind2 r -> m.regs.(rind r)
+  | Ind3 ((Lit l), r) -> Int64.add l m.regs.(rind r)
+  | _ -> failwith "call to getAddr from non-memory operand or unresolved label."
 
 (*
   Step 2 in step function:
-    given an architecture and an operand list of two operands, returns
-    the quad values of these operands
+    Retrieve the value for the operand o in machine m.
 *)
-let binary_ops (m: mach) (ol: operand list): quad*quad =
-  let open List in
-  if length ol < 2 then failwith "supplied less than 2 operands to binary operation"
-  else let (opn1, opn2) = (hd ol, hd (tl ol)) in
-    (unary_ops m opn1, unary_ops m opn2)
+let read_operand (m: mach) (o: operand): quad =
+  match o with
+  | Reg r -> m.regs.(rind r)
+  | _ -> load_quad m (get_addr m o)
 
 (*
-  Step 4 in the step function:
-  Save the value v of some computation at the operand address a.
+  Helper for write_operand: store the value v to address a in machine m.
 *)
-let save_op (m: mach) (v: quad) (a: quad): unit = 
+let store_quad (m: mach) (v: quad) (a: quad): unit = 
   let base = trySome (map_addr a) in
   let fill = List.combine [0;1;2;3;4;5;6;7] (sbytes_of_int64 v) in
     List.iter (function (index, sb) -> Array.set m.mem (base + index) sb) fill
 
+(*
+  Step 4 in the step function:
+  Save the value v of some computation to the operand o in machine m.
+*)
+let write_operand (m: mach) (v: quad) (d: operand) =
+  match d with
+  | Reg r -> Array.set m.regs (rind r) v
+  | _ -> store_quad m v (get_addr m d)
+
+let step_noarg (m:mach) (oc: opcode): unit =
+  ()
+
+let step_unary (m: mach) (oc: opcode) (on: operand): unit =
+  ()
+
+let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
+  let read = read_operand m in
+  let write = write_operand m in
+  match oc with
+  | Movq -> write (read o1) o2
+  | Leaq -> write (get_addr m o1) o2
+  | Addq -> write (Int64.add (read o1) (read o2)) o2
+  | Subq -> write (Int64.sub (read o1) (read o2)) o2
+  | Imulq -> write (Int64.mul (read o1) (read o2)) o2
+  | Xorq -> write (Int64.logxor (read o1) (read o2)) o2
+  | Orq -> write (Int64.logor (read o1) (read o2)) o2
+  | Andq -> write (Int64.logand (read o1) (read o2)) o2
+  | Shlq -> write (Int64.shift_left (read o2) (Int64.to_int (read o1))) o2
+  | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
+  | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
+  | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
+    ()
+  | _ -> failwith "unimplemented binary operation"
 
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
@@ -232,18 +257,14 @@ let save_op (m: mach) (v: quad) (a: quad): unit =
 *)
 let step (m:mach) : unit =
   let (oc, ol) = fetch m in
-  match oc with
-  | Movq -> let (src, dst) = binary_ops m ol in
-            save_op m src dst
-  | Pushq -> let src = unary_ops m (List.hd ol) in
-            let dst = unary_ops m (Reg Rsp) in
-            save_op m src dst;
-            Array.set m.regs (rind Rsp) (Int64.succ dst)
-  | Popq -> let src = unary_ops m (Reg Rsp) in
-            let Reg dst = (List.hd ol) in
-            Array.set m.regs (rind dst) src;
-            Array.set m.regs (rind Rsp) (Int64.pred src)
-  | _ -> ()
+  let open List in
+  let (noarg, binary) = (
+    [Retq],
+    [Movq; Leaq; Addq; Subq; Imulq; Xorq; Orq; Andq; Shlq; Sarq; Shrq; Cmpq]
+  ) in
+  if mem oc noarg then step_noarg m oc
+  else if mem oc binary then step_binary m oc (hd ol) (hd (tl ol))
+  else step_unary m oc (hd ol)
 
 (* Runs the machine until the rip register reaches a designated
    memory address. Returns the contents of %rax when the 
