@@ -182,6 +182,10 @@ let map_addr_tests = [
     ("map_addr5", segfault_test 0xFFFFFFFFFFFFFFFDL);
 ]
 
+let stupid_tests = [
+    ("stupid_1", assert_eqf (fun () -> true) true);
+]
+
 let interp_cnd_tests = [
     ("ccs_fff", interp_cnd_test (false,false,false) [Neq;Gt;Ge] );
     ("ccs_fft", interp_cnd_test (false,false,true)  [Eq;Le;Ge]  );
@@ -452,6 +456,7 @@ let condition_flag_set_tests =
 
 let easy_tests : suite =
 [
+  (* GradedTest("Stupid Test Lalala", 1000, stupid_tests); *)
   GradedTest("Map Addresses", 2, map_addr_tests);
   GradedTest("Condition Codes", 3, interp_cnd_tests);
   GradedTest("Easy Assemble Tests", 5,[
