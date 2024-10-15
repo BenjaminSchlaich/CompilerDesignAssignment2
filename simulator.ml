@@ -143,14 +143,110 @@ let sbytes_of_data : data -> sbyte list = function
 let debug_simulator = ref false
 
 (* Interpret a condition code with respect to the given flags. *)
-let interp_cnd {fo; fs; fz} : cnd -> bool = fun x -> failwith "interp_cnd unimplemented"
+let interp_cnd {fo; fs; fz} : cnd -> bool = function
+  | Eq -> fz
+  | Neq -> not fz
+  | Gt -> not ((fs <> fo) || fz)
+  | Ge -> fs = fo
+  | Lt -> fs <> fo
+  | Le -> (fs <> fo) || fz
+
+(* Eq | Neq | Gt | Ge | Lt | Le *)
 
 (* Maps an X86lite address into Some OCaml array index,
    or None if the address is not within the legal address space. *)
 let map_addr (addr:quad) : int option =
-  if (Int64.compare addr mem_bot) < 0 || (Int64.compare mem_top addr) <= 0 then None
+  if addr < mem_bot || addr >= mem_top then None
   else Some (Int64.to_int (Int64.sub addr mem_bot))
-  
+
+(*
+  Step 1 in step function:
+    given an architecture, returns the next instruction to be executed
+*)
+let fetch (m: mach): ins =
+  let instrAddr = m.regs.(rind Rip) in
+  let instrBytes = match map_addr instrAddr with
+  | Some q -> m.mem.(q)
+  | None -> failwith "trying to fetch from invalid address." in
+  match instrBytes with
+  | (InsB0 i) -> i
+  | _ -> failwith "trying to fetch non-instruction quadword."
+
+(*
+  generic helper for step function
+  Get a value out of a Some, with a very bad exception mechanism. -> Only use when you're sure that None won't be returned.
+*)
+let trySome = function
+| (Some x) -> x
+| None -> failwith "Failed to get some value"
+
+(*
+  generic helper for step function
+  Given a address (quad), loads the quad in the memory of m at that address
+*)
+let load_quad (m: mach) (addr: quad): quad =
+  let open List in
+  let (base: int) = trySome (map_addr addr) in
+    int64_of_sbytes (map (function (offset: int) -> m.mem.(base + offset)) [0;1;2;3;4;5;6;7])
+
+let get_addr (m: mach) (o: operand): quad =
+  match o with
+  | Imm (Lit l) -> l
+  | Ind1 (Lit l) -> l
+  | Ind2 r -> m.regs.(rind r)
+  | Ind3 ((Lit l), r) -> Int64.add l m.regs.(rind r)
+  | _ -> failwith "call to getAddr from non-memory operand or unresolved label."
+
+(*
+  Step 2 in step function:
+    Retrieve the value for the operand o in machine m.
+*)
+let read_operand (m: mach) (o: operand): quad =
+  match o with
+  | Reg r -> m.regs.(rind r)
+  | _ -> load_quad m (get_addr m o)
+
+(*
+  Helper for write_operand: store the value v to address a in machine m.
+*)
+let store_quad (m: mach) (v: quad) (a: quad): unit = 
+  let base = trySome (map_addr a) in
+  let fill = List.combine [0;1;2;3;4;5;6;7] (sbytes_of_int64 v) in
+    List.iter (function (index, sb) -> Array.set m.mem (base + index) sb) fill
+
+(*
+  Step 4 in the step function:
+  Save the value v of some computation to the operand o in machine m.
+*)
+let write_operand (m: mach) (v: quad) (d: operand) =
+  match d with
+  | Reg r -> Array.set m.regs (rind r) v
+  | _ -> store_quad m v (get_addr m d)
+
+let step_noarg (m:mach) (oc: opcode): unit =
+  ()
+
+let step_unary (m: mach) (oc: opcode) (on: operand): unit =
+  ()
+
+let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
+  let read = read_operand m in
+  let write = write_operand m in
+  match oc with
+  | Movq -> write (read o1) o2
+  | Leaq -> write (get_addr m o1) o2
+  | Addq -> write (Int64.add (read o1) (read o2)) o2
+  | Subq -> write (Int64.sub (read o1) (read o2)) o2
+  | Imulq -> write (Int64.mul (read o1) (read o2)) o2
+  | Xorq -> write (Int64.logxor (read o1) (read o2)) o2
+  | Orq -> write (Int64.logor (read o1) (read o2)) o2
+  | Andq -> write (Int64.logand (read o1) (read o2)) o2
+  | Shlq -> write (Int64.shift_left (read o2) (Int64.to_int (read o1))) o2
+  | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
+  | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
+  | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
+    ()
+  | _ -> failwith "unimplemented binary operation"
 
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
@@ -160,7 +256,15 @@ let map_addr (addr:quad) : int option =
     - set the condition flags
 *)
 let step (m:mach) : unit =
-failwith "step unimplemented"
+  let (oc, ol) = fetch m in
+  let open List in
+  let (noarg, binary) = (
+    [Retq],
+    [Movq; Leaq; Addq; Subq; Imulq; Xorq; Orq; Andq; Shlq; Sarq; Shrq; Cmpq]
+  ) in
+  if mem oc noarg then step_noarg m oc
+  else if mem oc binary then step_binary m oc (hd ol) (hd (tl ol))
+  else step_unary m oc (hd ol)
 
 (* Runs the machine until the rip register reaches a designated
    memory address. Returns the contents of %rax when the 
