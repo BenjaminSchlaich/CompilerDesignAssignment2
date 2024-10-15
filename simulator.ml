@@ -245,18 +245,32 @@ let step_unary (m: mach) (oc: opcode) (on: operand): unit =
 let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   let read = read_operand m in
   let write = write_operand m in
+  let setSignFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setZeroFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+  let arithm (f: (int64 -> int64 -> Int64_overflow.t)): unit = (
+    let res = f (read o2) (read o1) in
+      write res.value o2;
+      m.flags.fo <- res.overflow;
+      setSignFlag res.value;
+      setZeroFlag res.value) in
   match oc with
-  | Movq -> write (read o1) o2
-  | Leaq -> write (get_addr m o1) o2
-  | Addq -> write (Int64.add (read o1) (read o2)) o2
-  | Subq -> write (Int64.sub (read o2) (read o1)) o2
-  | Imulq -> write (Int64.mul (read o1) (read o2)) o2
-  | Xorq -> write (Int64.logxor (read o1) (read o2)) o2
-  | Orq -> write (Int64.logor (read o1) (read o2)) o2
-  | Andq -> write (Int64.logand (read o1) (read o2)) o2
+  | Movq -> write (read o1) o2                  (* DONE *)
+  | Leaq -> write (get_addr m o1) o2            (* DONE *)
+  | Addq -> arithm Int64_overflow.add           (* DONE *)
+  | Subq -> arithm Int64_overflow.sub           (* DONE *)
+  | Imulq -> arithm Int64_overflow.mul          (* DONE *)
+  | Xorq -> let res = (Int64.logxor (read o1) (read o2)) in (
+              write res o2;
+              setZeroFlag res; setSignFlag res; m.flags.fo <- false)
+  | Orq -> let res = (Int64.logor (read o1) (read o2)) in (
+              write res o2;
+              setZeroFlag res; setSignFlag res; m.flags.fo <- false)
+  | Andq -> let res = (Int64.logand (read o1) (read o2)) in (
+              write res o2;
+              setZeroFlag res; setSignFlag res; m.flags.fo <- false)
   | Shlq -> write (Int64.shift_left (read o2) (Int64.to_int (read o1))) o2
   | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
-  | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
+  | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2(*TODO*)
   | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
     ()
   | _ -> failwith "unimplemented binary operation"
