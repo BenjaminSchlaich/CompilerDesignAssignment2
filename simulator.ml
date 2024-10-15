@@ -223,33 +223,22 @@ let write_operand (m: mach) (v: quad) (d: operand) =
   | Reg r -> Array.set m.regs (rind r) v
   | _ -> store_quad m v (get_addr m d)
 
-let step_noarg (m:mach) (oc: opcode): unit =
-  let read = read_operand m in
-  let write = write_operand m in
-  match oc with
-  | _ -> failwith "unimplemented unary operation"
-
-let step_unary (m: mach) (oc: opcode) (on: operand): unit =
-  let read = read_operand m in
-  let write = write_operand m in
-  match oc with (*Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip))*)
-  | Pushq -> Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) (-8L)); write (read on) (Ind2 Rsp)
-  | Popq -> write (read (Ind2 Rsp)) on; Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) 8L)
-  | Incq -> write (Int64.succ (read on)) on
-  | Decq -> write (Int64.pred (read on)) on
-  | Negq -> write (Int64.neg (read on)) on
-  | Notq -> write (Int64.lognot (read on)) on
-  | Jmp -> write (read on) (Reg Rip)
-  | _ -> failwith "unimplemented unary operation"
-
 let stepSarq (m: mach) (o1: operand) (o2: operand): unit =
-  ()
+  let (x, y) = (read_operand m o1, read_operand m o2) in
+  let res = (Int64.shift_right y (Int64.to_int x)) in
+  let setZeroFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setSignFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+    write_operand m res o2;
+    (if Int64.equal 0L x then ()
+    else ((setSignFlag res; setZeroFlag res);
+      (if Int64.equal 1L x then m.flags.fo <- false
+      else ())))
 
 let stepShlq (m: mach) (o1: operand) (o2: operand): unit =
   let (x, y) = (read_operand m o1, read_operand m o2) in
   let res = (Int64.shift_left y (Int64.to_int x)) in
-  let setSignFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
-  let setZeroFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+  let setZeroFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setSignFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
   let topTwoBitsSame = Int64.equal (Int64.logand 1L (Int64.shift_right_logical y 62)) (Int64.shift_right_logical y 63) in
     write_operand m res o2;
     (if Int64.equal 0L x then ()
@@ -258,12 +247,23 @@ let stepShlq (m: mach) (o1: operand) (o2: operand): unit =
         if topTwoBitsSame then m.flags.fo <- false 
         else m.flags.fo <- true)
       else ())))
+let stepShrq (m: mach) (o1: operand) (o2: operand): unit =
+  let (x, y) = (read_operand m o1, read_operand m o2) in
+  let res = (Int64.shift_right_logical y (Int64.to_int x)) in
+  let setZeroFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setSignFlag x = if Int64.equal x 1L then m.flags.fs <- true else m.flags.fs <- false in
+  let msbY = if Int64.equal 1L (Int64.shift_right_logical y 63) then true else false in
+    write_operand m res o2;
+    (if Int64.equal 0L x then ()
+    else (setSignFlag (Int64.shift_right_logical res 63); setZeroFlag res;
+      (if Int64.equal 1L x then m.flags.fo <- msbY
+      else ())))
 
 let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   let read = read_operand m in
   let write = write_operand m in
-  let setSignFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
-  let setZeroFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+  let setZeroFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setSignFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
   let arithm (f: (int64 -> int64 -> Int64_overflow.t)): unit = (
     let res = f (read o2) (read o1) in
       write res.value o2;
@@ -276,22 +276,61 @@ let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   | Addq -> arithm Int64_overflow.add           (* DONE *)
   | Subq -> arithm Int64_overflow.sub           (* DONE *)
   | Imulq -> arithm Int64_overflow.mul          (* DONE *)
-  | Xorq -> let res = (Int64.logxor (read o1) (read o2)) in (
+  | Xorq -> let res = (Int64.logxor (read o1) (read o2)) in (         (* DONE *)
               write res o2;
               setZeroFlag res; setSignFlag res; m.flags.fo <- false)
-  | Orq -> let res = (Int64.logor (read o1) (read o2)) in (
+  | Orq -> let res = (Int64.logor (read o1) (read o2)) in (           (* DONE *)
               write res o2;
               setZeroFlag res; setSignFlag res; m.flags.fo <- false)
-  | Andq -> let res = (Int64.logand (read o1) (read o2)) in (
+  | Andq -> let res = (Int64.logand (read o1) (read o2)) in (         (* DONE *)
               write res o2;
               setZeroFlag res; setSignFlag res; m.flags.fo <- false)
-  | Shlq -> stepShlq m o1 o2
-  | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
-  | Shrq -> write (Int64.shift_right_logical (read o2) (Int64.to_int (read o1))) o2
-  | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
-    ()
+  | Shlq -> stepShlq m o1 o2                                          (* DONE *)
+  | Sarq -> stepSarq m o1 o2                                          (* DONE *)
+  | Shrq -> stepShrq m o1 o2                                          (* DONE *)
+  | Cmpq -> let res = Int64_overflow.sub (read o2) (read o1) in (     (* DONE *)
+              m.flags.fo <- res.overflow;
+              setSignFlag res.value;
+              setZeroFlag res.value)
   | _ -> failwith "unimplemented binary operation"
 
+let rec step_unary (m: mach) (oc: opcode) (on: operand): unit =
+  let read = read_operand m in
+  let write = write_operand m in
+  let setZeroFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setSignFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+  let setLowerByte v b = Int64.logor (Int64.logand v 0xFFFFFFFFFFFFFF00L) b in
+  match oc with (*Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip))*)
+  | Pushq -> Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) (-8L)); write (read on) (Ind2 Rsp)  (* DONE *)
+  | Popq -> write (read (Ind2 Rsp)) on; Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) 8L)      (* DONE *)
+  | Incq -> step_binary m Addq (Imm (Lit 1L)) on                                                          (* DONE *)
+  | Decq -> step_binary m Subq (Imm (Lit 1L)) on                                                          (* DONE *)
+  | Negq -> let res = Int64.neg (read on) in                                                              (* DONE *)
+            (write res on;
+            (if Int64.equal Int64.min_int (read on) then m.flags.fo <- true else (m.flags.fo <- false));
+            setZeroFlag res; setSignFlag res)
+  | Notq -> write (Int64.lognot (read on)) on                                                             (* DONE *)
+  | Jmp -> write (read on) (Reg Rip)
+  | J Eq -> if interp_cnd m.flags Eq then step_unary m Jmp on else ()
+  | J Neq -> if interp_cnd m.flags Neq then step_unary m Jmp on else ()
+  | J Lt -> if interp_cnd m.flags Lt then step_unary m Jmp on else ()
+  | J Le -> if interp_cnd m.flags Le then step_unary m Jmp on else ()
+  | J Gt -> if interp_cnd m.flags Gt then step_unary m Jmp on else ()
+  | J Ge -> if interp_cnd m.flags Ge then step_unary m Jmp on else ()
+  | Set Eq -> if interp_cnd m.flags Eq then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Set Neq -> if interp_cnd m.flags Neq then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Set Lt -> if interp_cnd m.flags Lt then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Set Le -> if interp_cnd m.flags Le then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Set Gt -> if interp_cnd m.flags Gt then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Set Ge -> if interp_cnd m.flags Ge then write (setLowerByte (read on) 1L) on else write (setLowerByte (read on) 0L) on
+  | Callq -> (step_unary m Pushq (Reg Rip); step_binary m Movq on (Reg Rip))
+  | _ -> failwith "unimplemented unary operation"
+
+let step_noarg (m:mach) (oc: opcode): unit =
+  match oc with
+  | Retq -> step_unary m Popq (Reg Rip)
+  | _ -> failwith "unimplemented noarg operation"
+  
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
     - compute the source and/or destination information from the operands
@@ -306,10 +345,10 @@ let step (m:mach) : unit =
     [Retq],
     [Movq; Leaq; Addq; Subq; Imulq; Xorq; Orq; Andq; Shlq; Sarq; Shrq; Cmpq]
   ) in (
-  (Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip)));
-  if mem oc noarg then step_noarg m oc
-  else if mem oc binary then step_binary m oc (hd ol) (hd (tl ol))
-  else step_unary m oc (hd ol)
+    (Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip)));
+    if mem oc noarg then step_noarg m oc
+    else if mem oc binary then step_binary m oc (hd ol) (hd (tl ol))
+    else step_unary m oc (hd ol)
   )
 
 (* Runs the machine until the rip register reaches a designated
