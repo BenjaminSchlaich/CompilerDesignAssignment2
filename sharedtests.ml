@@ -335,30 +335,25 @@ let cc_xor = fun () -> Gradedtests.test_machine
   ;InsB0 (Xorq,  [Imm (Lit 0xF000000000F0F0F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
-let cc_xors = fun () -> Gradedtests.test_machine
+let cc_xor1 = fun () -> Gradedtests.test_machine
   [InsB0 (Imulq, [Imm (Lit 0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F0F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
-let cc_xord = fun () -> Gradedtests.test_machine
+let cc_xor2 = fun () -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit 0x1L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F0F1L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
-let cc_xorf = fun () -> Gradedtests.test_machine
+let cc_xor3 = fun () -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit 0x0F0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ;InsB0 (Xorq,  [Imm (Lit 0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
-let cc_xorg = fun () -> Gradedtests.test_machine
+let cc_xor4 = fun () -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit 0xFFFFF0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F011F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
-
-
-
-
-
 
 let cc_sar = fun (n:int) (v:Int64.t) -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit v); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
@@ -405,6 +400,10 @@ let condition_flag_set_tests =
     ("cc_and", Gradedtests.cs_test 2 (cc_and ()) (false, false, false))
   ; ("cc_or",  Gradedtests.cs_test 2 (cc_or  ()) (false, false, false))
   ; ("cc_xor", Gradedtests.cs_test 2 (cc_xor ()) (false, false, false))
+  ; ("cc_xor1", Gradedtests.cs_test 2 (cc_xor1 ()) (false, false, false))
+  ; ("cc_xor2", Gradedtests.cs_test 2 (cc_xor2 ()) (false, false, false))
+  ; ("cc_xor3", Gradedtests.cs_test 2 (cc_xor3 ()) (false, false, false))
+  ; ("cc_xor4", Gradedtests.cs_test 2 (cc_xor4 ()) (false, false, false))
   ; ("cc_not", Gradedtests.csi_test 2 (cc_not ()))
   ; ("cc_not_negative", Gradedtests.cs_test 3 (cc_not_negative ()) (false, false, false))
   ; ("cc_and_arg_eq_0", Gradedtests.cs_test 2 (cc_and_arg 0 12345) (false, false, true))
