@@ -331,9 +331,34 @@ let cc_or = fun () -> Gradedtests.test_machine
   ]
 
 let cc_xor = fun () -> Gradedtests.test_machine
-  [InsB0 (Movq, [Imm (Lit 0x0F0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
-  ;InsB0 (Orq,  [Imm (Lit 0xF0F0F0F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  [InsB0 (Movq, [Imm (Lit 0xFFFFFFFFFFFFFFFFL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0xF000000000F0F0F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
+
+let cc_xors = fun () -> Gradedtests.test_machine
+  [InsB0 (Imulq, [Imm (Lit 0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F0F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ]
+
+let cc_xord = fun () -> Gradedtests.test_machine
+  [InsB0 (Movq, [Imm (Lit 0x1L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F0F1L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ]
+
+let cc_xorf = fun () -> Gradedtests.test_machine
+  [InsB0 (Movq, [Imm (Lit 0x0F0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ]
+
+let cc_xorg = fun () -> Gradedtests.test_machine
+  [InsB0 (Movq, [Imm (Lit 0xFFFFF0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F011F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ]
+
+
+
+
+
 
 let cc_sar = fun (n:int) (v:Int64.t) -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit v); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
