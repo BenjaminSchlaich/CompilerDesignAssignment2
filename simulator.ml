@@ -330,7 +330,7 @@ let step_noarg (m:mach) (oc: opcode): unit =
   match oc with
   | Retq -> step_unary m Popq (Reg Rip)
   | _ -> failwith "unimplemented noarg operation"
-  
+
 (* Simulates one step of the machine:
     - fetch the instruction at %rip
     - compute the source and/or destination information from the operands
