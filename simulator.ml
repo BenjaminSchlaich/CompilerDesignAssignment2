@@ -178,7 +178,7 @@ let fetch (m: mach): ins =
 *)
 let trySome = function
 | (Some x) -> x
-| None -> failwith "Failed to get some value"
+| None -> raise X86lite_segfault
 
 (*
   generic helper for step function
@@ -191,7 +191,6 @@ let load_quad (m: mach) (addr: quad): quad =
 
 let get_addr (m: mach) (o: operand): quad =
   match o with
-  | Imm (Lit l) -> l
   | Ind1 (Lit l) -> l
   | Ind2 r -> m.regs.(rind r)
   | Ind3 ((Lit l), r) -> Int64.add l m.regs.(rind r)
@@ -203,6 +202,7 @@ let get_addr (m: mach) (o: operand): quad =
 *)
 let read_operand (m: mach) (o: operand): quad =
   match o with
+  | Imm (Lit l) -> l
   | Reg r -> m.regs.(rind r)
   | _ -> load_quad m (get_addr m o)
 
@@ -224,10 +224,23 @@ let write_operand (m: mach) (v: quad) (d: operand) =
   | _ -> store_quad m v (get_addr m d)
 
 let step_noarg (m:mach) (oc: opcode): unit =
-  ()
+  let read = read_operand m in
+  let write = write_operand m in
+  match oc with
+  | _ -> failwith "unimplemented unary operation"
 
 let step_unary (m: mach) (oc: opcode) (on: operand): unit =
-  ()
+  let read = read_operand m in
+  let write = write_operand m in
+  match oc with (*Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip))*)
+  | Pushq -> Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) (-8L)); write (read on) (Ind2 Rsp)
+  | Popq -> write (read (Ind2 Rsp)) on; Array.set m.regs (rind Rsp) (Int64.add m.regs.(rind Rsp) 8L)
+  | Incq -> write (Int64.succ (read on)) on
+  | Decq -> write (Int64.pred (read on)) on
+  | Negq -> write (Int64.neg (read on)) on
+  | Notq -> write (Int64.lognot (read on)) on
+  | Jmp -> write (read on) (Reg Rip)
+  | _ -> failwith "unimplemented unary operation"
 
 let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   let read = read_operand m in
@@ -236,7 +249,7 @@ let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   | Movq -> write (read o1) o2
   | Leaq -> write (get_addr m o1) o2
   | Addq -> write (Int64.add (read o1) (read o2)) o2
-  | Subq -> write (Int64.sub (read o1) (read o2)) o2
+  | Subq -> write (Int64.sub (read o2) (read o1)) o2
   | Imulq -> write (Int64.mul (read o1) (read o2)) o2
   | Xorq -> write (Int64.logxor (read o1) (read o2)) o2
   | Orq -> write (Int64.logor (read o1) (read o2)) o2
@@ -261,10 +274,12 @@ let step (m:mach) : unit =
   let (noarg, binary) = (
     [Retq],
     [Movq; Leaq; Addq; Subq; Imulq; Xorq; Orq; Andq; Shlq; Sarq; Shrq; Cmpq]
-  ) in
+  ) in (
+  (Array.set m.regs (rind Rip) (Int64.add 8L m.regs.(rind Rip)));
   if mem oc noarg then step_noarg m oc
   else if mem oc binary then step_binary m oc (hd ol) (hd (tl ol))
   else step_unary m oc (hd ol)
+  )
 
 (* Runs the machine until the rip register reaches a designated
    memory address. Returns the contents of %rax when the 
