@@ -242,6 +242,9 @@ let step_unary (m: mach) (oc: opcode) (on: operand): unit =
   | Jmp -> write (read on) (Reg Rip)
   | _ -> failwith "unimplemented unary operation"
 
+let stepSarq (m: mach) (o1: operand) (o2: operand): unit =
+  ()
+
 let stepShlq (m: mach) (o1: operand) (o2: operand): unit =
   let (x, y) = (read_operand m o1, read_operand m o2) in
   let res = (Int64.shift_left y (Int64.to_int x)) in
@@ -284,7 +287,7 @@ let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
               setZeroFlag res; setSignFlag res; m.flags.fo <- false)
   | Shlq -> stepShlq m o1 o2
   | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
-  | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2(*TODO*)
+  | Shrq -> write (Int64.shift_right_logical (read o2) (Int64.to_int (read o1))) o2
   | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
     ()
   | _ -> failwith "unimplemented binary operation"
