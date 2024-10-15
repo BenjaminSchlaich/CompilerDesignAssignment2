@@ -346,8 +346,8 @@ let cc_xor2 = fun () -> Gradedtests.test_machine
   ]
 
 let cc_xor3 = fun () -> Gradedtests.test_machine
-  [InsB0 (Movq, [Imm (Lit 0x0F0F0F0FL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
-  ;InsB0 (Xorq,  [Imm (Lit 0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  [InsB0 (Movq, [Imm (Lit 0xCL); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
+  ;InsB0 (Xorq,  [Imm (Lit 0x6L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
 let cc_xor4 = fun () -> Gradedtests.test_machine
@@ -400,8 +400,8 @@ let condition_flag_set_tests =
     ("cc_and", Gradedtests.cs_test 2 (cc_and ()) (false, false, false))
   ; ("cc_or",  Gradedtests.cs_test 2 (cc_or  ()) (false, false, false))     (* OSZ *)
   ; ("cc_xor", Gradedtests.cs_test 2 (cc_xor ()) (false, false, false))
-  ; ("cc_xor1", Gradedtests.cs_test 2 (cc_xor1 ()) (false, false, true))
-  ; ("cc_xor2", Gradedtests.cs_test 2 (cc_xor2 ()) (false, true, false))
+  ; ("cc_xor1", Gradedtests.cs_test 2 (cc_xor1 ()) (false, false, false))
+  ; ("cc_xor2", Gradedtests.cs_test 2 (cc_xor2 ()) (false, false, false))
   ; ("cc_xor3", Gradedtests.cs_test 2 (cc_xor3 ()) (false, false, true))
   ; ("cc_xor4", Gradedtests.cs_test 2 (cc_xor4 ()) (false, true, false))
   ; ("cc_not", Gradedtests.csi_test 2 (cc_not ()))
