@@ -231,18 +231,6 @@ let subq = test_machine
     ;InsB0 (Subq, [~%Rax; ~%Rbx]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
     ;InsB0 (Subq, [~%Rbx; stack_offset 0L]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag]
 
-
-let leaq = test_machine
-    [InsB0 (Leaq, [Ind2 Rax; ~%R08]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
-    ;InsB0 (Leaq, [~%Rax; ~%Rbx]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
-    ;InsB0 (Leaq, [~%Rbx; stack_offset 0L]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag]
-
-("subq", machine_test "rax=*65528=-1L; rbx=1" 3 addq
-  (fun m -> m.regs.(rind Rax) = 1L
-        && m.regs.(rind Rbx) = 1L
-        && int64_of_sbytes (sbyte_list m.mem (mem_size-8)) = 1L
-    )
-  );
 (**)
 (*
 let subq = test_machine

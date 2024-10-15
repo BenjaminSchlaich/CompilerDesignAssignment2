@@ -355,11 +355,6 @@ let cc_xor4 = fun () -> Gradedtests.test_machine
   ;InsB0 (Xorq,  [Imm (Lit 0xF0F0F011F0L); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ]
 
-
-
-
-
-
 let cc_sar = fun (n:int) (v:Int64.t) -> Gradedtests.test_machine
   [InsB0 (Movq, [Imm (Lit v); ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
   ;InsB0 (Sarq, [~$n; ~%Rax]);InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag;InsFrag
