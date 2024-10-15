@@ -242,6 +242,20 @@ let step_unary (m: mach) (oc: opcode) (on: operand): unit =
   | Jmp -> write (read on) (Reg Rip)
   | _ -> failwith "unimplemented unary operation"
 
+let stepShlq (m: mach) (o1: operand) (o2: operand): unit =
+  let (x, y) = (read_operand m o1, read_operand m o2) in
+  let res = (Int64.shift_left y (Int64.to_int x)) in
+  let setSignFlag x = if Int64.equal x 0L then m.flags.fz <- true else m.flags.fz <- false in
+  let setZeroFlag x = if (Int64.compare x 0L) < 0 then m.flags.fs <- true else m.flags.fs <- false in
+  let topTwoBitsSame = Int64.equal (Int64.logand 1L (Int64.shift_right_logical y 62)) (Int64.shift_right_logical y 63) in
+    write_operand m res o2;
+    (if Int64.equal 0L x then ()
+    else ((setSignFlag res; setZeroFlag res);
+      (if Int64.equal 1L x then (
+        if topTwoBitsSame then m.flags.fo <- false 
+        else m.flags.fo <- true)
+      else ())))
+
 let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   let read = read_operand m in
   let write = write_operand m in
@@ -268,7 +282,7 @@ let step_binary (m: mach) (oc: opcode) (o1: operand) (o2: operand): unit =
   | Andq -> let res = (Int64.logand (read o1) (read o2)) in (
               write res o2;
               setZeroFlag res; setSignFlag res; m.flags.fo <- false)
-  | Shlq -> write (Int64.shift_left (read o2) (Int64.to_int (read o1))) o2
+  | Shlq -> stepShlq m o1 o2
   | Sarq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2
   | Shrq -> write (Int64.shift_right (read o2) (Int64.to_int (read o1))) o2(*TODO*)
   | Cmpq -> let rslt = Int64.sub (read o2) (read o1) in
