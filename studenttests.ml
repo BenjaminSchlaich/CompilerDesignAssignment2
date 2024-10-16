@@ -48,7 +48,7 @@ let helloworld_textseg =
 let provided_tests : suite = [
   Test ("Debug Lookup", [
     (let res = (lookup [("l1", 1L); ("l2", 2L); ("main", 5L)] "main") in
-    ("lookup exists", assert_eq (Some 4L) res));
+    ("lookup exists", assert_eq (Some 5L) res));
     (let res = (lookup [("l1", 1L); ("l2", 2L)] "main") in
     ("lookup expected None and got " ^ printInt64Opt res, assert_eq None res))
   ]);

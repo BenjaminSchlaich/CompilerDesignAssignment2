@@ -415,8 +415,8 @@ let separate (p: prog): (celem list * delem list) =
     match e.asm with
     | Text [] -> (c, d)             (* empty code block is dropped immediately *)
     | Data [] -> (c, d)             (* empty data block is dropped, too *)
-    | Text cs -> ({lbl = e.lbl; global = e.global; inst = cs; size = cslen cs} :: c, d)
-    | Data ds -> (c, {lbl = e.lbl; global = e.global; data = ds; size = dslen ds} :: d)
+    | Text cs -> (c @ [{lbl = e.lbl; global = e.global; inst = cs; size = cslen cs}], d)
+    | Data ds -> (c, d @ [{lbl = e.lbl; global = e.global; data = ds; size = dslen ds}])
   in
   List.fold_left sort ([], []) p
 
