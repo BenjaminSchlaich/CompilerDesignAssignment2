@@ -388,6 +388,36 @@ exception Redefined_sym of lbl
 
   HINT: List.fold_left and List.fold_right are your friends.
  *)
+
+type celem = { lbl: lbl; global: bool; inst: ins list; size: int64 }
+type delem = { lbl: lbl; global: bool; data: data list; size: int64 }
+
+(* sort the program into instructions and data*)
+let separate (p: prog): (celem list * delem list) =
+  let cslen cs = Int64.mul 8L @@ Int64.of_int (List.length cs) in
+  let dlen d = 
+    match d with
+    | Asciz s -> Int64.of_int @@ String.length s + 1
+    | Quad (Lit l) -> 8L
+    | Quad (Lbl l) -> failwith "WTF IS GOING ON" in
+  let dslen ds = List.fold_left (fun s b -> Int64.add s @@ dlen b) 0L ds in
+  let sort (c, d) (e: elem) =
+    match e.asm with
+    | Text [] -> (c, d)             (* empty code block is dropped immediately *)
+    | Data [] -> (c, d)             (* empty data block is dropped, too *)
+    | Text cs -> ({lbl = e.lbl; global = e.global; inst = cs; size = cslen cs} :: c, d)
+    | Data ds -> (c, {lbl = e.lbl; global = e.global; data = ds; size = dslen ds} :: d)
+  in
+  List.fold_left sort ([], []) p
+
+let testSegLength (p: celem list): int64 =
+  List.fold_left (fun s (e: celem) -> Int64.add s e.size) 0L p
+
+let dataSegLength (p: delem list): int64 =
+  List.fold_left (fun s (e: delem) -> Int64.add s e.size) 0L p
+
+
+
 let assemble (p:prog) : exec =
 failwith "assemble unimplemented"
 
