@@ -189,12 +189,16 @@ let load_quad (m: mach) (addr: quad): quad =
   let (base: int) = trySome (map_addr addr) in
     int64_of_sbytes (map (function (offset: int) -> m.mem.(base + offset)) [0;1;2;3;4;5;6;7])
 
+(*
+  returns the address represented by indirection operand on in machine m
+*)
 let get_addr (m: mach) (o: operand): quad =
   match o with
   | Ind1 (Lit l) -> l
   | Ind2 r -> m.regs.(rind r)
   | Ind3 ((Lit l), r) -> Int64.add l m.regs.(rind r)
   | _ -> failwith "call to getAddr from non-memory operand or unresolved label."
+
 
 (*
   Step 2 in step function:
@@ -223,6 +227,9 @@ let write_operand (m: mach) (v: quad) (d: operand) =
   | Reg r -> Array.set m.regs (rind r) v
   | _ -> store_quad m v (get_addr m d)
 
+(*
+  step function just for the Sarq operation, because it's condition flags are hell
+*)
 let stepSarq (m: mach) (o1: operand) (o2: operand): unit =
   let (x, y) = (read_operand m o1, read_operand m o2) in
   let res = (Int64.shift_right y (Int64.to_int x)) in
@@ -234,6 +241,10 @@ let stepSarq (m: mach) (o1: operand) (o2: operand): unit =
       (if Int64.equal 1L x then m.flags.fo <- false
       else ())))
 
+
+(*
+  step function just for the Sarq operation, because it's condition flags are hell
+*)
 let stepShlq (m: mach) (o1: operand) (o2: operand): unit =
   let (x, y) = (read_operand m o1, read_operand m o2) in
   let res = (Int64.shift_left y (Int64.to_int x)) in
