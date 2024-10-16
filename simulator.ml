@@ -416,10 +416,69 @@ let testSegLength (p: celem list): int64 =
 let dataSegLength (p: delem list): int64 =
   List.fold_left (fun s (e: delem) -> Int64.add s e.size) 0L p
 
+type symTable = {mutable entries: (lbl * quad) list; mutable head: quad}
 
+let rec lookup (ls: (lbl*quad) list) (lab: lbl): quad option =
+  match ls with
+  | [] -> None
+  | (l, q)::xs -> if l = lab then Some q else lookup xs lab
+
+let buildTableI (p: celem list) (start: quad): symTable =
+  let t = {entries = []; head = start} in
+  let locup = lookup t.entries in
+  let insert (ce: celem): unit = 
+    match locup ce.lbl with
+    | Some _ -> failwith ("double declaration of label " ^ ce.lbl)
+    | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
+  in
+  List.iter insert p; t
+
+let buildTableD (p: delem list) (start: quad): symTable =
+  let t = {entries = []; head = start} in
+  let locup = lookup t.entries in
+  let insert (ce: delem): unit = 
+    match locup ce.lbl with
+    | Some _ -> failwith ("double declaration of label " ^ ce.lbl)
+    | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
+  in
+  List.iter insert p; t
+
+(*  replace occurences of a lable in i with the address for that label in the symTable t.
+    if a label is not found, a Undefined_symbol exception is raised.
+*)
+let patchInstruction (t: symTable) (i: ins): ins =
+  let locup = lookup t.entries in
+  let patchOperand (on: operand): operand =
+    match on with
+    | Imm (Lbl l) -> (match locup l with
+                      | Some q -> Imm (Lit q)
+                      | None -> failwith "Undefined_symbol")
+    | Ind1 (Lbl l) -> (match locup l with
+                      | Some q -> Ind1 (Lit q)
+                      | None -> failwith "Undefined_symbol")
+    | Ind3 (Lbl l, r) -> (match locup l with
+                        | Some q -> Ind3 (Lit q, r)
+                        | None -> failwith "Undefined_symbol")
+    | _ -> on
+  in
+  let (oc, ol) = i in
+  (oc, List.map patchOperand ol)
 
 let assemble (p:prog) : exec =
-failwith "assemble unimplemented"
+  let (textSeg, dataSeg) = separate p in
+  let iTable = buildTableI textSeg mem_bot in
+  let dTable = buildTableD dataSeg iTable.head in
+  let sTable = {entries = iTable.entries @ dTable.entries; head = dTable.head} in
+  let patchedText =
+    List.map (function | (ce: celem) -> {lbl = ce.lbl; global = ce.global; inst = List.map (patchInstruction sTable) ce.inst; size = ce.size}) textSeg
+  in
+  {
+    entry = (match lookup iTable.entries "main" with | Some q -> q | None -> failwith "main label not found");
+    text_pos = mem_bot;
+    data_pos = iTable.head;
+    text_seg = List.concat_map sbytes_of_ins (List.concat_map (function ce -> ce.inst) patchedText);
+    data_seg = List.concat_map sbytes_of_data (List.concat_map (function de -> de.data) dataSeg)
+  }
 
 (* Convert an object file into an executable machine state. 
     - allocate the mem array
