@@ -480,12 +480,15 @@ let assemble (p:prog) : exec =
   let patchedText =
     List.map (function | (ce: celem) -> {lbl = ce.lbl; global = ce.global; inst = List.map (patchInstruction sTable) ce.inst; size = ce.size}) textSeg
   in
+  let patchedData =
+    List.map (function | (de: delem) -> {lbl = de.lbl; global = de.global; data = List.map (patchData sTable) de.data; size = de.size}) dataSeg
+  in
   {
     entry = (match lookup iTable.entries "main" with | Some q -> q | None -> raise @@ Undefined_sym "main");
     text_pos = mem_bot;
     data_pos = iTable.head;
     text_seg = List.concat_map sbytes_of_ins (List.concat_map (function ce -> ce.inst) patchedText);
-    data_seg = List.concat_map sbytes_of_data (List.concat_map (function de -> de.data) dataSeg)
+    data_seg = List.concat_map sbytes_of_data (List.concat_map (function de -> de.data) patchedData)
   }
 
 (* Convert an object file into an executable machine state. 
