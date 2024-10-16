@@ -167,7 +167,7 @@ let fetch (m: mach): ins =
   let instrAddr = m.regs.(rind Rip) in
   let instrBytes = match map_addr instrAddr with
   | Some q -> m.mem.(q)
-  | None -> failwith "trying to fetch from invalid address." in
+  | None -> raise X86lite_segfault in
   match instrBytes with
   | (InsB0 i) -> i
   | _ -> failwith "trying to fetch non-instruction quadword."
@@ -398,8 +398,7 @@ let separate (p: prog): (celem list * delem list) =
   let dlen d = 
     match d with
     | Asciz s -> Int64.of_int @@ String.length s + 1
-    | Quad (Lit l) -> 8L
-    | Quad (Lbl l) -> failwith "WTF IS GOING ON" in
+    | Quad _ -> 8L in
   let dslen ds = List.fold_left (fun s b -> Int64.add s @@ dlen b) 0L ds in
   let sort (c, d) (e: elem) =
     match e.asm with
@@ -428,7 +427,7 @@ let buildTableI (p: celem list) (start: quad): symTable =
   let locup = lookup t.entries in
   let insert (ce: celem): unit = 
     match locup ce.lbl with
-    | Some _ -> failwith ("double declaration of label " ^ ce.lbl)
+    | Some _ -> raise @@ Redefined_sym ce.lbl
     | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
   in
   List.iter insert p; t
@@ -438,7 +437,7 @@ let buildTableD (p: delem list) (start: quad): symTable =
   let locup = lookup t.entries in
   let insert (ce: delem): unit = 
     match locup ce.lbl with
-    | Some _ -> failwith ("double declaration of label " ^ ce.lbl)
+    | Some _ -> raise @@ Redefined_sym ce.lbl
     | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
   in
   List.iter insert p; t
@@ -452,17 +451,26 @@ let patchInstruction (t: symTable) (i: ins): ins =
     match on with
     | Imm (Lbl l) -> (match locup l with
                       | Some q -> Imm (Lit q)
-                      | None -> failwith "Undefined_symbol")
+                      | None -> raise @@ Undefined_sym l)
     | Ind1 (Lbl l) -> (match locup l with
                       | Some q -> Ind1 (Lit q)
-                      | None -> failwith "Undefined_symbol")
+                      | None -> raise @@ Undefined_sym l)
     | Ind3 (Lbl l, r) -> (match locup l with
                         | Some q -> Ind3 (Lit q, r)
-                        | None -> failwith "Undefined_symbol")
+                        | None -> raise @@ Undefined_sym l)
     | _ -> on
   in
   let (oc, ol) = i in
   (oc, List.map patchOperand ol)
+
+  let patchData (t: symTable) (d: data): data =
+    let locup = lookup t.entries in
+    match d with
+    | Quad (Lbl l) -> (match locup l with
+                      | Some q -> Quad (Lit q)
+                      | None -> raise @@ Undefined_sym l)
+    | _ -> d
+  
 
 let assemble (p:prog) : exec =
   let (textSeg, dataSeg) = separate p in
@@ -473,7 +481,7 @@ let assemble (p:prog) : exec =
     List.map (function | (ce: celem) -> {lbl = ce.lbl; global = ce.global; inst = List.map (patchInstruction sTable) ce.inst; size = ce.size}) textSeg
   in
   {
-    entry = (match lookup iTable.entries "main" with | Some q -> q | None -> failwith "main label not found");
+    entry = (match lookup iTable.entries "main" with | Some q -> q | None -> raise @@ Undefined_sym "main");
     text_pos = mem_bot;
     data_pos = iTable.head;
     text_seg = List.concat_map sbytes_of_ins (List.concat_map (function ce -> ce.inst) patchedText);
