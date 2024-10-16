@@ -446,30 +446,30 @@ let buildTableD (p: delem list) (start: quad): symTable =
     if a label is not found, a Undefined_symbol exception is raised.
 *)
 let patchInstruction (t: symTable) (i: ins): ins =
-  let locup = lookup t.entries in
-  let patchOperand (on: operand): operand =
-    match on with
-    | Imm (Lbl l) -> (match locup l with
-                      | Some q -> Imm (Lit q)
+let locup = lookup t.entries in
+let patchOperand (on: operand): operand =
+  match on with
+  | Imm (Lbl l) -> (match locup l with
+                    | Some q -> Imm (Lit q)
+                    | None -> raise @@ Undefined_sym l)
+  | Ind1 (Lbl l) -> (match locup l with
+                    | Some q -> Ind1 (Lit q)
+                    | None -> raise @@ Undefined_sym l)
+  | Ind3 (Lbl l, r) -> (match locup l with
+                      | Some q -> Ind3 (Lit q, r)
                       | None -> raise @@ Undefined_sym l)
-    | Ind1 (Lbl l) -> (match locup l with
-                      | Some q -> Ind1 (Lit q)
-                      | None -> raise @@ Undefined_sym l)
-    | Ind3 (Lbl l, r) -> (match locup l with
-                        | Some q -> Ind3 (Lit q, r)
-                        | None -> raise @@ Undefined_sym l)
-    | _ -> on
-  in
-  let (oc, ol) = i in
-  (oc, List.map patchOperand ol)
+  | _ -> on
+in
+let (oc, ol) = i in
+(oc, List.map patchOperand ol)
 
-  let patchData (t: symTable) (d: data): data =
-    let locup = lookup t.entries in
-    match d with
-    | Quad (Lbl l) -> (match locup l with
-                      | Some q -> Quad (Lit q)
-                      | None -> raise @@ Undefined_sym l)
-    | _ -> d
+let patchData (t: symTable) (d: data): data =
+  let locup = lookup t.entries in
+  match d with
+  | Quad (Lbl l) -> (match locup l with
+                    | Some q -> Quad (Lit q)
+                    | None -> raise @@ Undefined_sym l)
+  | _ -> d
   
 
 let assemble (p:prog) : exec =
