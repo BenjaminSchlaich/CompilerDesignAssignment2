@@ -413,8 +413,6 @@ let separate (p: prog): (celem list * delem list) =
   let dslen ds = List.fold_left (fun s b -> Int64.add s @@ dlen b) 0L ds in
   let sort (c, d) (e: elem) =
     match e.asm with
-    | Text [] -> (c, d)             (* empty code block is dropped immediately *)
-    | Data [] -> (c, d)             (* empty data block is dropped, too *)
     | Text cs -> (c @ [{lbl = e.lbl; global = e.global; inst = cs; size = cslen cs}], d)
     | Data ds -> (c, d @ [{lbl = e.lbl; global = e.global; data = ds; size = dslen ds}])
   in
@@ -435,21 +433,13 @@ let rec lookup (ls: (lbl*quad) list) (lab: lbl): quad option =
 
 let buildTableI (p: celem list) (start: quad): symTable =
   let t = {entries = []; head = start} in
-  let locup = lookup t.entries in
-  let insert (ce: celem): unit = 
-    match locup ce.lbl with
-    | Some _ -> raise @@ Redefined_sym ce.lbl
-    | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
+  let insert (ce: celem): unit = t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
   in
   List.iter insert p; t
 
 let buildTableD (p: delem list) (start: quad): symTable =
   let t = {entries = []; head = start} in
-  let locup = lookup t.entries in
-  let insert (ce: delem): unit = 
-    match locup ce.lbl with
-    | Some _ -> raise @@ Redefined_sym ce.lbl
-    | None -> t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
+  let insert (ce: delem): unit = t.entries <- (ce.lbl, t.head) :: t.entries; t.head <- Int64.add t.head ce.size
   in
   List.iter insert p; t
 
@@ -481,13 +471,23 @@ let patchData (t: symTable) (d: data): data =
                     | Some q -> Quad (Lit q)
                     | None -> raise @@ Undefined_sym l)
   | _ -> d
-  
+
+let rec find_duplicate (l: _ list): string option =
+  let rec contains ll x =
+    match ll with
+    | [] -> false
+    | hd::tl -> x = hd || contains tl x in
+  match l with
+  | [] -> None
+  | x::xs -> if contains xs x then Some x else find_duplicate xs
 
 let assemble (p:prog) : exec =
   let (textSeg, dataSeg) = separate p in
   let iTable = buildTableI textSeg mem_bot in
   let dTable = buildTableD dataSeg iTable.head in
   let sTable = {entries = iTable.entries @ dTable.entries; head = dTable.head} in
+  let possibleDuplicate = find_duplicate (List.map (function (x, y) -> x) sTable.entries) in
+  (match possibleDuplicate with | None -> () | Some s -> raise @@ Redefined_sym s);
   let patchedText =
     List.map (function | (ce: celem) -> {lbl = ce.lbl; global = ce.global; inst = List.map (patchInstruction sTable) ce.inst; size = ce.size}) textSeg
   in
@@ -518,7 +518,7 @@ let assemble (p:prog) : exec =
 let load {entry; text_pos; data_pos; text_seg; data_seg} : mach = 
   let mem = (Array.make mem_size (Byte '\x00')) in
   Array.blit (Array.of_list text_seg) 0 mem 0 (List.length text_seg);
-  Array.blit (Array.of_list text_seg) 0 mem (Int64.to_int (Int64.sub data_pos text_pos)) (List.length data_seg);
+  Array.blit (Array.of_list data_seg) 0 mem (Int64.to_int (Int64.sub data_pos text_pos)) (List.length data_seg);
   Array.blit (Array.of_list (sbytes_of_int64 exit_addr)) 0 mem (Array.length mem - 8) 8;
   let regs = Array.make nregs 0L in
   regs.(rind Rip) <- entry;
